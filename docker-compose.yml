@@ -13,8 +13,9 @@ services:
       - PORT=5005
       - MODEL_NAME=allenai/olmOCR-2-7B-1025-FP8
       - PROCESSOR_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-      - TARGET_IMAGE_DIM=1288
+      - TARGET_IMAGE_DIM=1024
       - CUDA_VISIBLE_DEVICES=0
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     volumes:
       # Cache models to persist between restarts
       - huggingface_cache:/root/.cache/huggingface

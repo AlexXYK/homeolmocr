@@ -95,6 +95,9 @@ def load_model_on_startup():
     try:
         logger.info("Loading olmOCR model and processor...")
         
+        # Set CUDA memory management for better fragmentation handling
+        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+        
         # Determine device
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {device}")
@@ -113,6 +116,10 @@ def load_model_on_startup():
         
         if not torch.cuda.is_available():
             model.to(device)
+        
+        # Clear any cached memory
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         
         logger.info("Model and processor loaded successfully!")
         
@@ -252,6 +259,10 @@ async def process_ocr(file: UploadFile = File(...)):
             new_tokens, 
             skip_special_tokens=True
         )[0]
+        
+        # Clear GPU cache after processing
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         
         logger.info("OCR processing completed successfully")
         
