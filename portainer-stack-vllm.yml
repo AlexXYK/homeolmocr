@@ -35,12 +35,12 @@ services:
     networks:
       - olmocr-network
 
-  # FastAPI Wrapper - Your API on port 5005
+  # FastAPI Wrapper - Your API on port 5006
   olmocr-api:
     image: alexxyk/olmocr-api:vllm
     container_name: olmocr-api
     ports:
-      - "5005:5005"
+      - "5006:5005"
     environment:
       - PORT=5005
       - VLLM_BASE_URL=http://vllm-server:8000/v1

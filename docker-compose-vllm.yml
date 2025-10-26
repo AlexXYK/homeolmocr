@@ -43,7 +43,7 @@ services:
       context: .
       dockerfile: Dockerfile.vllm
     ports:
-      - "5005:5005"
+      - "5006:5005"
     environment:
       - PORT=5005
       - VLLM_BASE_URL=http://vllm-server:8000/v1
