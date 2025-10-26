@@ -124,15 +124,53 @@ python test_api.py path/to/your/image.jpg
 python test_api.py path/to/your/image.jpg http://localhost:5005
 ```
 
-## 📡 API Usage
+## 📡 API Reference
 
-### Health Check
+### Base URL
+```
+http://your-server-ip:5005
+```
 
+### Endpoints
+
+#### 1. Root Endpoint
+**GET** `/`
+
+Returns API information and available endpoints.
+
+**Example:**
+```bash
+curl http://localhost:5005/
+```
+
+**Response:**
+```json
+{
+  "service": "olmOCR API",
+  "version": "1.0.0",
+  "model": "allenai/olmOCR-2-7B-1025-FP8",
+  "status": "ready",
+  "device": "cuda:0",
+  "endpoints": {
+    "health": "/health",
+    "ocr": "/ocr (POST with image file)"
+  }
+}
+```
+
+---
+
+#### 2. Health Check
+**GET** `/health`
+
+Check if the API is running and the model is loaded.
+
+**Example:**
 ```bash
 curl http://localhost:5005/health
 ```
 
-Response:
+**Response:**
 ```json
 {
   "status": "healthy",
@@ -142,29 +180,82 @@ Response:
 }
 ```
 
-### OCR Endpoint
+**Status Codes:**
+- `200 OK`: Service is healthy
+- `503 Service Unavailable`: Model not loaded yet
 
+---
+
+#### 3. OCR Processing
+**POST** `/ocr`
+
+Extract text from an image and return it in markdown format.
+
+**Content-Type:** `multipart/form-data`
+
+**Parameters:**
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file` | File | Yes | Image file (JPEG, PNG, GIF, WebP, etc.) |
+
+**Example (curl):**
 ```bash
-# Using curl
-curl -X POST -F "file=@image.jpg" http://localhost:5005/ocr
+curl -X POST \
+  -F "file=@/path/to/image.jpg" \
+  http://localhost:5005/ocr
+```
 
-# Using Python requests
+**Example (curl with headers):**
+```bash
+curl -X POST \
+  -H "Accept: application/json" \
+  -F "file=@/path/to/image.jpg" \
+  http://localhost:5005/ocr
+```
+
+**Example (Tasker/HTTP Request):**
+```
+URL: http://your-server-ip:5005/ocr
+Method: POST
+Content-Type: multipart/form-data
+Body:
+  - Field name: file
+  - Field type: File
+  - File source: Camera/Gallery/File
+```
+
+**Example (Python):**
+```python
 import requests
 
 with open('image.jpg', 'rb') as f:
     response = requests.post(
         'http://localhost:5005/ocr',
-        files={'file': f}
+        files={'file': ('image.jpg', f, 'image/jpeg')}
     )
     result = response.json()
     print(result['text'])
 ```
 
-Response format:
+**Example (JavaScript):**
+```javascript
+const formData = new FormData();
+formData.append('file', fileInput.files[0]);
+
+fetch('http://localhost:5005/ocr', {
+  method: 'POST',
+  body: formData
+})
+.then(response => response.json())
+.then(data => console.log(data.text));
+```
+
+**Success Response (200 OK):**
 ```json
 {
   "success": true,
-  "text": "# Extracted Text\n\nThis is the extracted text in markdown format...",
+  "text": "# Heading\n\nExtracted text in markdown format...",
+  "error": null,
   "metadata": {
     "original_size": [2000, 3000],
     "processed_size": [859, 1288],
@@ -173,6 +264,79 @@ Response format:
   }
 }
 ```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "success": false,
+  "text": null,
+  "error": "Invalid image file: cannot identify image file",
+  "metadata": null
+}
+```
+
+**Error Response (503 Service Unavailable):**
+```json
+{
+  "detail": "Model not loaded yet"
+}
+```
+
+**Status Codes:**
+- `200 OK`: Image processed successfully
+- `400 Bad Request`: Invalid image or missing file
+- `422 Unprocessable Entity`: Missing required parameter
+- `503 Service Unavailable`: Model not ready
+- `500 Internal Server Error`: Processing error
+
+---
+
+### Complete curl Examples
+
+**Basic OCR request:**
+```bash
+curl -X POST -F "file=@image.jpg" http://localhost:5005/ocr
+```
+
+**With timeout (5 minutes):**
+```bash
+curl --max-time 300 -X POST -F "file=@image.jpg" http://localhost:5005/ocr
+```
+
+**Save response to file:**
+```bash
+curl -X POST -F "file=@image.jpg" http://localhost:5005/ocr | jq -r '.text' > output.md
+```
+
+**With error handling:**
+```bash
+curl -X POST -F "file=@image.jpg" http://localhost:5005/ocr \
+  && echo "Success" || echo "Failed"
+```
+
+**From URL (download first):**
+```bash
+# Download image
+curl -o temp.jpg https://example.com/image.jpg
+
+# Process it
+curl -X POST -F "file=@temp.jpg" http://localhost:5005/ocr
+```
+
+---
+
+### Response Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | Boolean | `true` if OCR succeeded, `false` if error occurred |
+| `text` | String or null | Extracted text in markdown format (null if error) |
+| `error` | String or null | Error message if processing failed (null if success) |
+| `metadata` | Object or null | Additional information about the processing |
+| `metadata.original_size` | Array [width, height] | Original image dimensions in pixels |
+| `metadata.processed_size` | Array [width, height] | Processed image dimensions (after resizing) |
+| `metadata.filename` | String | Original filename of the uploaded image |
+| `metadata.model` | String | Model used for OCR processing |
 
 ## 📱 Mobile Integration
 
