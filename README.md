@@ -2,12 +2,17 @@
 
 A production-ready REST API for OCR processing using the olmOCR-2-7B-1025-FP8 model from Allen AI. This service converts images and documents to markdown format with high accuracy.
 
+> **⚡ NEW: VLLM-Powered Version Available!**  
+> For 16GB GPUs, use the **VLLM version** for 2-3x better memory efficiency!  
+> See [`VLLM_SETUP.md`](VLLM_SETUP.md) or [`WHICH_VERSION.md`](WHICH_VERSION.md)
+
 ## 🚀 Features
 
 - **High-Accuracy OCR**: Uses the state-of-the-art olmOCR-2-7B-1025-FP8 model
 - **Markdown Output**: Extracts text in clean markdown format preserving structure
 - **REST API**: Easy-to-use FastAPI endpoint for integration
 - **Docker Support**: Fully containerized with GPU support
+- **VLLM-Powered**: Memory-efficient inference (10-12GB vs 14.6GB)
 - **Portainer Compatible**: Ready-to-use docker-compose stack
 - **Production Ready**: Health checks, error handling, and logging
 
