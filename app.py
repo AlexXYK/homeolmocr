@@ -11,6 +11,7 @@ import traceback
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
+from contextlib import asynccontextmanager
 
 import torch
 from PIL import Image
@@ -25,13 +26,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# Initialize FastAPI app
-app = FastAPI(
-    title="olmOCR API",
-    description="OCR service using olmOCR-2-7B-1025-FP8 for converting images to markdown",
-    version="1.0.0"
-)
 
 # Global model and processor variables
 model = None
@@ -94,8 +88,7 @@ def resize_image_to_target_dim(image: Image.Image, target_dim: int) -> Image.Ima
     return image.resize((new_width, new_height), Image.LANCZOS)
 
 
-@app.on_event("startup")
-async def load_model():
+def load_model_on_startup():
     """Load the model and processor on startup"""
     global model, processor, device
     
@@ -127,6 +120,25 @@ async def load_model():
         logger.error(f"Failed to load model: {str(e)}")
         logger.error(traceback.format_exc())
         raise
+
+
+# Lifespan context manager for startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Load model
+    load_model_on_startup()
+    yield
+    # Shutdown (cleanup if needed)
+    pass
+
+
+# Initialize FastAPI app with lifespan
+app = FastAPI(
+    title="olmOCR API",
+    description="OCR service using olmOCR-2-7B-1025-FP8 for converting images to markdown",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 
 @app.get("/")
