@@ -10,8 +10,8 @@ services:
       # API Configuration
       - PORT=5005
       
-      # Model Configuration (Non-FP8 = Better for 16GB GPUs!)
-      - MODEL_NAME=allenai/olmOCR-2-7B-1025
+      # Model Configuration (FP8 optimized with reduced image size)
+      - MODEL_NAME=allenai/olmOCR-2-7B-1025-FP8
       - PROCESSOR_NAME=Qwen/Qwen2.5-VL-7B-Instruct
       - TARGET_IMAGE_DIM=640
       
