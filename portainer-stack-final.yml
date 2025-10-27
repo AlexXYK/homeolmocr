@@ -29,7 +29,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ['1']
+              count: all
               capabilities: [gpu]
     restart: unless-stopped
     healthcheck:
