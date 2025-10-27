@@ -130,8 +130,17 @@ def load_model():
         # Set CUDA memory management
         os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
         
-        # Determine device
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Force GPU 1 (workaround for Portainer not respecting NVIDIA_VISIBLE_DEVICES)
+        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+            device = torch.device("cuda:1")  # Force second GPU
+            logger.info(f"Forcing GPU 1 (cuda:1) - {torch.cuda.get_device_name(1)}")
+        elif torch.cuda.is_available():
+            device = torch.device("cuda:0")
+            logger.info(f"Only one GPU available, using GPU 0")
+        else:
+            device = torch.device("cpu")
+            logger.info("No GPU available, using CPU")
+        
         logger.info(f"Using device: {device}")
         
         # Load processor
@@ -140,14 +149,22 @@ def load_model():
         
         # Load model
         logger.info(f"Loading model from {MODEL_NAME}")
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            MODEL_NAME,
-            torch_dtype=torch.bfloat16,
-            device_map="auto" if torch.cuda.is_available() else None
-        ).eval()
         
-        if not torch.cuda.is_available():
-            model.to(device)
+        # Use explicit device instead of device_map="auto" to respect our GPU choice
+        if torch.cuda.is_available():
+            model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                MODEL_NAME,
+                torch_dtype=torch.bfloat16,
+                low_cpu_mem_usage=True
+            ).eval().to(device)
+        else:
+            model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                MODEL_NAME,
+                torch_dtype=torch.bfloat16,
+                device_map="auto"
+            ).eval()
+        
+        # Model already on correct device from above
         
         # Clear any cached memory
         if torch.cuda.is_available():
