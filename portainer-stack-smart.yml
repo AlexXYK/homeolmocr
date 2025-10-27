@@ -4,6 +4,7 @@ services:
   olmocr-api:
     image: alexxyk/olmocr-api:smart
     container_name: olmocr-api-smart
+    runtime: nvidia
     ports:
       - "5006:5005"
     environment:
@@ -21,17 +22,11 @@ services:
       
       # GPU Configuration - Use GPU 1 (leaves GPU 0 for Ollama/ComfyUI)
       - CUDA_VISIBLE_DEVICES=1
+      - NVIDIA_VISIBLE_DEVICES=1
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       
     volumes:
       - huggingface_cache:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ['1']
-              capabilities: [gpu]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
