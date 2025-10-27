@@ -13,7 +13,7 @@ services:
       # Model Configuration (Non-FP8 = Better for 16GB GPUs!)
       - MODEL_NAME=allenai/olmOCR-2-7B-1025
       - PROCESSOR_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-      - TARGET_IMAGE_DIM=1024
+      - TARGET_IMAGE_DIM=640
       
       # Smart Memory Management
       - KEEP_ALIVE_SECONDS=300

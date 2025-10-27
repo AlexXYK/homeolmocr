@@ -333,7 +333,7 @@ async def process_ocr(file: UploadFile = File(...)):
             output = model.generate(
                 **inputs,
                 temperature=0.1,
-                max_new_tokens=4096,
+                max_new_tokens=2048,  # Reduced from 4096 to save memory
                 num_return_sequences=1,
                 do_sample=True,
             )
