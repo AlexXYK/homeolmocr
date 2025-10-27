@@ -130,16 +130,14 @@ def load_model():
         # Set CUDA memory management
         os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
         
-        # Force GPU 1 (workaround for Portainer not respecting NVIDIA_VISIBLE_DEVICES)
-        if torch.cuda.is_available() and torch.cuda.device_count() > 1:
-            device = torch.device("cuda:1")  # Force second GPU
-            logger.info(f"Forcing GPU 1 (cuda:1) - {torch.cuda.get_device_name(1)}")
-        elif torch.cuda.is_available():
-            device = torch.device("cuda:0")
-            logger.info(f"Only one GPU available, using GPU 0")
-        else:
-            device = torch.device("cpu")
-            logger.info("No GPU available, using CPU")
+        # Determine device - use AUTO to spread across GPUs if needed
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        if torch.cuda.is_available():
+            gpu_count = torch.cuda.device_count()
+            logger.info(f"Found {gpu_count} GPU(s)")
+            for i in range(gpu_count):
+                logger.info(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
         
         logger.info(f"Using device: {device}")
         
@@ -147,24 +145,14 @@ def load_model():
         logger.info(f"Loading processor from {PROCESSOR_NAME}")
         processor = AutoProcessor.from_pretrained(PROCESSOR_NAME)
         
-        # Load model
+        # Load model with AUTO device_map - will spread across both GPUs if needed!
         logger.info(f"Loading model from {MODEL_NAME}")
-        
-        # Use explicit device instead of device_map="auto" to respect our GPU choice
-        if torch.cuda.is_available():
-            model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                MODEL_NAME,
-                torch_dtype=torch.bfloat16,
-                low_cpu_mem_usage=True
-            ).eval().to(device)
-        else:
-            model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                MODEL_NAME,
-                torch_dtype=torch.bfloat16,
-                device_map="auto"
-            ).eval()
-        
-        # Model already on correct device from above
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            MODEL_NAME,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",  # Let it use BOTH GPUs automatically!
+            low_cpu_mem_usage=True
+        ).eval()
         
         # Clear any cached memory
         if torch.cuda.is_available():
