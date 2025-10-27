@@ -4,7 +4,6 @@ services:
   olmocr-api:
     image: alexxyk/olmocr-api:smart
     container_name: olmocr-api
-    runtime: nvidia
     ports:
       - "5006:5005"
     environment:
@@ -19,12 +18,19 @@ services:
       # Smart Memory Management
       - KEEP_ALIVE_SECONDS=300
       
-      # GPU Configuration - FORCE GPU 1
-      - CUDA_VISIBLE_DEVICES=1
+      # GPU Configuration - MUST use GPU 1
       - NVIDIA_VISIBLE_DEVICES=1
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       
     volumes:
       - huggingface_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
