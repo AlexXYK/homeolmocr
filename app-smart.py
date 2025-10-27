@@ -327,15 +327,20 @@ async def process_ocr(file: UploadFile = File(...)):
         )
         inputs = {key: value.to(device) for key, value in inputs.items()}
         
-        # Generate output
+        # Generate output (aggressive memory optimization for 16GB GPUs)
         logger.info("Generating OCR output...")
         with torch.no_grad():
+            # Clear cache before generation
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
             output = model.generate(
                 **inputs,
                 temperature=0.1,
-                max_new_tokens=2048,  # Reduced from 4096 to save memory
+                max_new_tokens=1024,  # Reduced to 1024 to fit in memory
                 num_return_sequences=1,
                 do_sample=True,
+                use_cache=True,  # Enable KV cache for efficiency
             )
         
         # Decode output

@@ -10,10 +10,10 @@ services:
       # API Configuration
       - PORT=5005
       
-      # Model Configuration (FP8 optimized with reduced image size)
+      # Model Configuration (FP8 optimized with aggressive memory reduction)
       - MODEL_NAME=allenai/olmOCR-2-7B-1025-FP8
       - PROCESSOR_NAME=Qwen/Qwen2.5-VL-7B-Instruct
-      - TARGET_IMAGE_DIM=640
+      - TARGET_IMAGE_DIM=512
       
       # Smart Memory Management
       - KEEP_ALIVE_SECONDS=300
