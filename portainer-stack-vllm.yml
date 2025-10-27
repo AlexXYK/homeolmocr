@@ -1,10 +1,11 @@
 version: '3.8'
 
 services:
-  # VLLM Server - Runs the model efficiently
+  # VLLM Server - Runs the model efficiently on GPU 1
   vllm-server:
     image: vllm/vllm-openai:latest
     container_name: olmocr-vllm-server
+    runtime: nvidia
     command: >
       --model allenai/olmOCR-2-7B-1025-FP8
       --port 8000
@@ -12,19 +13,13 @@ services:
       --max-model-len 8192
       --trust-remote-code
     ports:
-      - "8000:8000"
+      - "8010:8000"
     environment:
-      - CUDA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=1
+      - NVIDIA_VISIBLE_DEVICES=1
       - HF_HOME=/root/.cache/huggingface
     volumes:
       - vllm_cache:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
