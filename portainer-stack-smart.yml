@@ -20,7 +20,7 @@ services:
                                        # Set to 600 for 10 minutes, 60 for 1 minute, etc.
       
       # GPU Configuration - Use GPU 1 (leaves GPU 0 for Ollama/ComfyUI)
-      - NVIDIA_VISIBLE_DEVICES=1
+      - CUDA_VISIBLE_DEVICES=1
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
       
     volumes:
