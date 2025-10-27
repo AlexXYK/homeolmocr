@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-MODEL_NAME = os.getenv("MODEL_NAME", "allenai/olmOCR-2-7B-1025-FP8")
+MODEL_NAME = os.getenv("MODEL_NAME", "allenai/olmOCR-2-7B-1025")  # Non-FP8 for better compatibility
 PROCESSOR_NAME = os.getenv("PROCESSOR_NAME", "Qwen/Qwen2.5-VL-7B-Instruct")
 TARGET_IMAGE_DIM = int(os.getenv("TARGET_IMAGE_DIM", "1024"))
 KEEP_ALIVE_SECONDS = int(os.getenv("KEEP_ALIVE_SECONDS", "300"))  # 5 minutes default
