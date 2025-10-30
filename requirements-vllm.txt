@@ -1,0 +1,19 @@
+# Lightweight requirements for VLLM API wrapper
+# (VLLM server handles the heavy ML stuff)
+
+# Core web framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# VLLM client
+openai>=1.0.0
+
+# Image processing (lightweight)
+pillow>=10.0.0
+pdf2image>=1.17.0
+
+# Data validation
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
