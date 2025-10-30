@@ -318,30 +318,29 @@ async def process_ocr(
 
         # Optionally convert HTML tables to Markdown using pandoc (robust fragment handling)
         if convert_html_tables:
-            lower_out = text_output.lower()
-            has_table_like = any(tag in lower_out for tag in ["<table", "</table>", "<tr", "<td", "<th"])            
-            if has_table_like:
-                try:
-                    logger.info("Converting HTML tables to Markdown via pandoc (final output)...")
-                    html_fragment = text_output
-                    if "<html" not in lower_out and "<body" not in lower_out:
-                        html_fragment = f"<html><body>{text_output}</body></html>"
-                    completed = subprocess.run(
-                        [
-                            "pandoc",
-                            "-f","html",
-                            "-t","gfm",
-                            "-tex_math_dollars",
-                        ],
-                        input=html_fragment,
-                        text=True,
-                        capture_output=True,
-                        check=True,
-                    )
-                    if completed.stdout.strip():
-                        text_output = completed.stdout
-                except Exception as e:
-                    logger.warning(f"Pandoc conversion failed: {str(e)}")
+            try:
+                logger.info("Converting HTML (tables) to Markdown via pandoc (forced when enabled)...")
+                lower_out = text_output.lower()
+                html_fragment = text_output
+                if "<html" not in lower_out and "<body" not in lower_out:
+                    html_fragment = f"<html><body>{text_output}</body></html>"
+                completed = subprocess.run(
+                    [
+                        "pandoc",
+                        "-f","html",
+                        "-t","gfm+pipe_tables",
+                        "--wrap","none",
+                        "-tex_math_dollars",
+                    ],
+                    input=html_fragment,
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                )
+                if completed.stdout.strip():
+                    text_output = completed.stdout
+            except Exception as e:
+                logger.warning(f"Pandoc conversion failed: {str(e)}")
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
