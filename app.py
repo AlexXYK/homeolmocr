@@ -333,8 +333,9 @@ async def process_ocr(
                         check=True,
                     )
                     # Stage 2: Convert HTML back to GFM with tex_math_dollars (strip tex_math from gfm)
+                    # Use markdown_strict with pipe_tables extension for proper table formatting
                     stage2 = subprocess.run(
-                        ["pandoc", "-f", "html", "-t", "gfm-tex_math_dollars", "--wrap=none"],
+                        ["pandoc", "-f", "html", "-t", "markdown-tex_math_dollars+pipe_tables", "--wrap=none"],
                         input=stage1.stdout,
                         text=True,
                         capture_output=True,
