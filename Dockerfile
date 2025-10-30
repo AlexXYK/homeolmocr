@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     pandoc \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.10 as default

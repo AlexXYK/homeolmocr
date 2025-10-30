@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import subprocess
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+from pdf2image import convert_from_bytes
 
 # Configure logging
 logging.basicConfig(
@@ -220,6 +221,9 @@ async def metrics():
 async def process_ocr(
     file: UploadFile = File(...),
     convert_html_tables: bool = False,
+    pdf_dpi: int = 200,
+    max_pages: Optional[int] = None,
+    page_separator: str = "---",
 ):
     """
     Process an image file and return extracted text in markdown format
@@ -234,75 +238,83 @@ async def process_ocr(
         raise HTTPException(status_code=503, detail="Model not loaded yet")
     
     try:
-        # Read and validate image
+        # Helper to OCR a single PIL image
+        def ocr_image_to_text(pil_image: Image.Image) -> str:
+            resized = resize_image_to_target_dim(pil_image, TARGET_IMAGE_DIM)
+            prompt_text = build_prompt()
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {"type": "image", "image": resized},
+                    ],
+                }
+            ]
+            templated = processor.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            inputs = processor(
+                text=[templated],
+                images=[resized],
+                padding=True,
+                return_tensors="pt",
+            )
+            inputs = {key: value.to(device) for key, value in inputs.items()}
+            with torch.no_grad():
+                output = model.generate(
+                    **inputs,
+                    temperature=0.1,
+                    max_new_tokens=4096,
+                    num_return_sequences=1,
+                    do_sample=True,
+                )
+            prompt_length = inputs["input_ids"].shape[1]
+            new_tokens = output[:, prompt_length:]
+            page_text = processor.tokenizer.batch_decode(
+                new_tokens,
+                skip_special_tokens=True,
+            )[0]
+            return page_text
+
         logger.info(f"Processing file: {file.filename}")
         contents = await file.read()
-        
-        try:
-            image = Image.open(BytesIO(contents))
-            # Convert to RGB if necessary
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-        except Exception as e:
-            logger.error(f"Failed to open image: {str(e)}")
-            return OCRResponse(
-                success=False,
-                error=f"Invalid image file: {str(e)}"
-            )
-        
-        # Resize image to target dimension
-        original_size = image.size
-        image = resize_image_to_target_dim(image, TARGET_IMAGE_DIM)
-        logger.info(f"Image resized from {original_size} to {image.size}")
-        
-        # Prepare prompt
-        prompt_text = build_prompt()
-        
-        # Build messages in the format expected by the model
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt_text},
-                    {"type": "image", "image": image},
-                ],
-            }
-        ]
-        
-        # Apply chat template
-        text = processor.apply_chat_template(
-            messages, 
-            tokenize=False, 
-            add_generation_prompt=True
-        )
-        
-        # Process inputs
-        inputs = processor(
-            text=[text],
-            images=[image],
-            padding=True,
-            return_tensors="pt",
-        )
-        inputs = {key: value.to(device) for key, value in inputs.items()}
-        
-        # Generate output
-        logger.info("Generating OCR output...")
-        with torch.no_grad():
-            output = model.generate(
-                **inputs,
-                temperature=0.1,
-                max_new_tokens=4096,
-                num_return_sequences=1,
-                do_sample=True,
-            )
-        
-        # Decode output
-        prompt_length = inputs["input_ids"].shape[1]
-        new_tokens = output[:, prompt_length:]
-        text_output = processor.tokenizer.batch_decode(
-            new_tokens, 
-            skip_special_tokens=True
-        )[0]
+
+        # Branch: PDF vs image
+        is_pdf = (file.content_type == "application/pdf") or (file.filename and file.filename.lower().endswith(".pdf"))
+
+        if is_pdf:
+            logger.info("Detected PDF. Converting to images...")
+            pages: list[Image.Image] = convert_from_bytes(contents, dpi=pdf_dpi)
+            if max_pages is not None:
+                pages = pages[:max_pages]
+            if not pages:
+                return OCRResponse(success=False, error="PDF contained no pages")
+            page_texts = []
+            for idx, page in enumerate(pages):
+                if page.mode != 'RGB':
+                    page = page.convert('RGB')
+                logger.info(f"OCR page {idx+1}/{len(pages)}")
+                page_texts.append(ocr_image_to_text(page))
+            text_output = f"\n\n{page_separator}\n\n".join(page_texts)
+            original_size = None
+            processed_size = None
+        else:
+            try:
+                image = Image.open(BytesIO(contents))
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+            except Exception as e:
+                logger.error(f"Failed to open image: {str(e)}")
+                return OCRResponse(
+                    success=False,
+                    error=f"Invalid image file: {str(e)}"
+                )
+            original_size = image.size
+            text_output = ocr_image_to_text(image)
+            processed_size = resize_image_to_target_dim(image, TARGET_IMAGE_DIM).size
 
         # Optionally convert HTML tables to Markdown using pandoc
         if convert_html_tables and ("<table" in text_output.lower() or "</table>" in text_output.lower()):
@@ -323,22 +335,25 @@ async def process_ocr(
                 text_output = completed.stdout
             except Exception as e:
                 logger.warning(f"Pandoc conversion failed: {str(e)}")
-        
-        # Clear GPU cache after processing
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        
+
         logger.info("OCR processing completed successfully")
-        
+
         return OCRResponse(
             success=True,
             text=text_output,
             metadata={
                 "original_size": original_size,
-                "processed_size": image.size,
+                "processed_size": processed_size,
                 "filename": file.filename,
                 "model": MODEL_NAME,
-                "html_tables_converted": bool(convert_html_tables)
+                "html_tables_converted": bool(convert_html_tables),
+                "is_pdf": bool(is_pdf),
+                "page_separator": page_separator if is_pdf else None,
+                "pdf_dpi": pdf_dpi if is_pdf else None,
+                "page_count": text_output.count(f"\n\n{page_separator}\n\n") + 1 if is_pdf else None,
             }
         )
         

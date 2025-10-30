@@ -6,6 +6,7 @@ accelerate>=0.25.0
 pillow>=10.0.0
 numpy>=1.24.0
 compressed-tensors>=0.7.0
+pdf2image>=1.17.0
 
 # API framework
 fastapi>=0.104.0
