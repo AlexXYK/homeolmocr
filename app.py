@@ -16,8 +16,10 @@ from contextlib import asynccontextmanager
 import torch
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import subprocess
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
 # Configure logging
@@ -147,6 +149,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Enable permissive CORS by default to simplify integrations
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 async def root():
@@ -159,7 +170,8 @@ async def root():
         "device": str(device) if device else "unknown",
         "endpoints": {
             "health": "/health",
-            "ocr": "/ocr (POST with image file)"
+            "ocr": "/ocr (POST with image file)",
+            "metrics": "/metrics"
         }
     }
 
@@ -175,8 +187,40 @@ async def health_check():
     }
 
 
+@app.get("/metrics")
+async def metrics():
+    """Minimal service metrics for observability and readiness checks"""
+    cuda_available = torch.cuda.is_available()
+    cuda = None
+    if cuda_available:
+        try:
+            current_device = torch.cuda.current_device()
+            cuda = {
+                "device_index": int(current_device),
+                "device_name": torch.cuda.get_device_name(current_device),
+                # Values in bytes to avoid units ambiguity
+                "memory_allocated": int(torch.cuda.memory_allocated(current_device)),
+                "memory_reserved": int(torch.cuda.memory_reserved(current_device)),
+            }
+        except Exception:
+            cuda = {"error": "unable to query cuda stats"}
+
+    return {
+        "service": "olmOCR API",
+        "version": "1.0.0",
+        "model": MODEL_NAME,
+        "model_loaded": model is not None,
+        "device": str(device) if device else "unknown",
+        "cuda_available": cuda_available,
+        "cuda": cuda,
+    }
+
+
 @app.post("/ocr", response_model=OCRResponse)
-async def process_ocr(file: UploadFile = File(...)):
+async def process_ocr(
+    file: UploadFile = File(...),
+    convert_html_tables: bool = False,
+):
     """
     Process an image file and return extracted text in markdown format
     
@@ -259,6 +303,26 @@ async def process_ocr(file: UploadFile = File(...)):
             new_tokens, 
             skip_special_tokens=True
         )[0]
+
+        # Optionally convert HTML tables to Markdown using pandoc
+        if convert_html_tables and ("<table" in text_output.lower() or "</table>" in text_output.lower()):
+            try:
+                logger.info("Converting HTML tables to Markdown via pandoc...")
+                completed = subprocess.run(
+                    [
+                        "pandoc",
+                        "-f","html",
+                        "-t","gfm",
+                        "-tex_math_dollars",
+                    ],
+                    input=text_output,
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                )
+                text_output = completed.stdout
+            except Exception as e:
+                logger.warning(f"Pandoc conversion failed: {str(e)}")
         
         # Clear GPU cache after processing
         if torch.cuda.is_available():
@@ -273,7 +337,8 @@ async def process_ocr(file: UploadFile = File(...)):
                 "original_size": original_size,
                 "processed_size": image.size,
                 "filename": file.filename,
-                "model": MODEL_NAME
+                "model": MODEL_NAME,
+                "html_tables_converted": bool(convert_html_tables)
             }
         )
         

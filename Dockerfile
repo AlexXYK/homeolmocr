@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     curl \
+    pandoc \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.10 as default
