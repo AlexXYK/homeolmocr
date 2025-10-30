@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   olmocr-api:
-    image: alexxyk/olmocr-api:v0.2.0
+    image: alexxyk/olmocr-api:latest
     container_name: olmocr-api
     ports:
       - "5005:5005"
