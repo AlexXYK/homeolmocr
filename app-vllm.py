@@ -337,7 +337,7 @@ async def process_ocr(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "app-vllm:app",
+        "app:app",
         host="0.0.0.0",
         port=API_PORT,
         log_level="info"
