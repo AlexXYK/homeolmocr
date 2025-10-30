@@ -320,7 +320,8 @@ async def process_ocr(
         # Stage 1: gfm+raw_html → html  | Stage 2: html → gfm-tex_math_dollars
         if convert_html_tables:
             lower_out = text_output.lower()
-            has_table_like = any(tag in lower_out for tag in ["<table", "</table>", "<tr", "<td", "<th"])            
+            has_table_like = any(tag in lower_out for tag in ["<table", "</table>", "<tr", "<td", "<th"])
+            logger.info(f"convert_html_tables={convert_html_tables}, has_table_like={has_table_like}")
             if has_table_like:
                 try:
                     logger.info("Converting embedded HTML tables to Markdown via two-stage pandoc...")
@@ -330,21 +331,31 @@ async def process_ocr(
                         input=text_output,
                         text=True,
                         capture_output=True,
-                        check=True,
+                        check=False,
                     )
+                    if stage1.returncode != 0:
+                        logger.error(f"Stage 1 pandoc failed: {stage1.stderr}")
+                        raise Exception(f"Stage 1 failed: {stage1.stderr}")
+                    logger.info("Stage 1 complete")
                     # Stage 2: Convert HTML back to GFM with proper pipe tables
                     stage2 = subprocess.run(
                         ["pandoc", "-f", "html", "-t", "gfm-tex_math_dollars", "--wrap=none"],
                         input=stage1.stdout,
                         text=True,
                         capture_output=True,
-                        check=True,
+                        check=False,
                     )
+                    if stage2.returncode != 0:
+                        logger.error(f"Stage 2 pandoc failed: {stage2.stderr}")
+                        raise Exception(f"Stage 2 failed: {stage2.stderr}")
+                    logger.info("Stage 2 complete")
                     if stage2.stdout.strip():
                         text_output = stage2.stdout
                         logger.info("Successfully converted HTML tables to clean Markdown")
+                    else:
+                        logger.warning("Pandoc returned empty output, keeping original")
                 except Exception as e:
-                    logger.warning(f"Pandoc two-stage conversion failed: {str(e)}")
+                    logger.error(f"Pandoc two-stage conversion failed: {str(e)}", exc_info=True)
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
