@@ -316,31 +316,35 @@ async def process_ocr(
             text_output = ocr_image_to_text(image)
             processed_size = resize_image_to_target_dim(image, TARGET_IMAGE_DIM).size
 
-        # Optionally convert HTML tables to Markdown using pandoc (robust fragment handling)
+        # Optionally convert HTML tables to Markdown using two-stage pandoc pipeline
+        # Stage 1: gfm+raw_html → html  | Stage 2: html → gfm-tex_math_dollars
         if convert_html_tables:
-            try:
-                logger.info("Converting HTML (tables) to Markdown via pandoc (forced when enabled)...")
-                lower_out = text_output.lower()
-                html_fragment = text_output
-                if "<html" not in lower_out and "<body" not in lower_out:
-                    html_fragment = f"<html><body>{text_output}</body></html>"
-                completed = subprocess.run(
-                    [
-                        "pandoc",
-                        "-f","html",
-                        "-t","gfm+pipe_tables",
-                        "--wrap","none",
-                        "-tex_math_dollars",
-                    ],
-                    input=html_fragment,
-                    text=True,
-                    capture_output=True,
-                    check=True,
-                )
-                if completed.stdout.strip():
-                    text_output = completed.stdout
-            except Exception as e:
-                logger.warning(f"Pandoc conversion failed: {str(e)}")
+            lower_out = text_output.lower()
+            has_table_like = any(tag in lower_out for tag in ["<table", "</table>", "<tr", "<td", "<th"])            
+            if has_table_like:
+                try:
+                    logger.info("Converting embedded HTML tables to Markdown via two-stage pandoc...")
+                    # Stage 1: Parse mixed markdown+HTML as GFM with raw_html extension → HTML
+                    stage1 = subprocess.run(
+                        ["pandoc", "-f", "gfm+raw_html", "-t", "html"],
+                        input=text_output,
+                        text=True,
+                        capture_output=True,
+                        check=True,
+                    )
+                    # Stage 2: Convert HTML back to GFM with tex_math_dollars (strip tex_math from gfm)
+                    stage2 = subprocess.run(
+                        ["pandoc", "-f", "html", "-t", "gfm-tex_math_dollars", "--wrap=none"],
+                        input=stage1.stdout,
+                        text=True,
+                        capture_output=True,
+                        check=True,
+                    )
+                    if stage2.stdout.strip():
+                        text_output = stage2.stdout
+                        logger.info("Successfully converted HTML tables to clean Markdown")
+                except Exception as e:
+                    logger.warning(f"Pandoc two-stage conversion failed: {str(e)}")
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
