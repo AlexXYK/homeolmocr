@@ -316,25 +316,32 @@ async def process_ocr(
             text_output = ocr_image_to_text(image)
             processed_size = resize_image_to_target_dim(image, TARGET_IMAGE_DIM).size
 
-        # Optionally convert HTML tables to Markdown using pandoc
-        if convert_html_tables and ("<table" in text_output.lower() or "</table>" in text_output.lower()):
-            try:
-                logger.info("Converting HTML tables to Markdown via pandoc...")
-                completed = subprocess.run(
-                    [
-                        "pandoc",
-                        "-f","html",
-                        "-t","gfm",
-                        "-tex_math_dollars",
-                    ],
-                    input=text_output,
-                    text=True,
-                    capture_output=True,
-                    check=True,
-                )
-                text_output = completed.stdout
-            except Exception as e:
-                logger.warning(f"Pandoc conversion failed: {str(e)}")
+        # Optionally convert HTML tables to Markdown using pandoc (robust fragment handling)
+        if convert_html_tables:
+            lower_out = text_output.lower()
+            has_table_like = any(tag in lower_out for tag in ["<table", "</table>", "<tr", "<td", "<th"])            
+            if has_table_like:
+                try:
+                    logger.info("Converting HTML tables to Markdown via pandoc (final output)...")
+                    html_fragment = text_output
+                    if "<html" not in lower_out and "<body" not in lower_out:
+                        html_fragment = f"<html><body>{text_output}</body></html>"
+                    completed = subprocess.run(
+                        [
+                            "pandoc",
+                            "-f","html",
+                            "-t","gfm",
+                            "-tex_math_dollars",
+                        ],
+                        input=html_fragment,
+                        text=True,
+                        capture_output=True,
+                        check=True,
+                    )
+                    if completed.stdout.strip():
+                        text_output = completed.stdout
+                except Exception as e:
+                    logger.warning(f"Pandoc conversion failed: {str(e)}")
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
